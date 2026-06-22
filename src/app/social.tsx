@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { Plus, X, Check, LogOut, UserPlus } from "lucide-react";
+import { X, Check, LogOut, UserPlus, Users } from "lucide-react";
 import { supabase } from "./supabase";
 
 const BG = "#111111";
@@ -258,6 +258,8 @@ function Leaderboard({ profile, onSignOut }: { profile: Profile; onSignOut: () =
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState("");
   const [addMsg, setAddMsg] = useState("");
+  const [showFriends, setShowFriends] = useState(false);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const { data: t } = await supabase.rpc("get_friend_totals", { range_start: rangeStart(range) });
@@ -297,10 +299,14 @@ function Leaderboard({ profile, onSignOut }: { profile: Profile; onSignOut: () =
   }
   async function remove(id: string) {
     await supabase.from("friendships").delete().eq("id", id);
+    setConfirmId(null);
     load();
   }
 
   const incoming = friendships.filter((f) => f.addressee === profile.id && f.status === "pending");
+  const accepted = friendships
+    .filter((f) => f.status === "accepted")
+    .map((f) => ({ friendshipId: f.id, profile: profiles[f.requester === profile.id ? f.addressee : f.requester] }));
 
   const sorted = [...totals].sort((a, b) => order === "most" ? b.total - a.total : a.total - b.total);
   const showPodium = sorted.length >= 3;
@@ -319,28 +325,64 @@ function Leaderboard({ profile, onSignOut }: { profile: Profile; onSignOut: () =
       {/* header row */}
       <div className="flex items-center justify-between mb-4">
         <span className="text-sm font-medium" style={{ color: "#fff" }}>@{profile.username}</span>
-        <button onClick={onSignOut} style={{ color: "rgba(255,255,255,0.3)" }} className="active:opacity-50"><LogOut size={16} /></button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => { setShowFriends((v) => !v); setConfirmId(null); }}
+            className="relative active:opacity-50"
+            style={{ color: showFriends ? "#fff" : "rgba(255,255,255,0.3)" }}
+          >
+            <Users size={16} />
+            {incoming.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ background: "rgba(120,220,120,0.9)" }} />
+            )}
+          </button>
+          <button onClick={onSignOut} style={{ color: "rgba(255,255,255,0.3)" }} className="active:opacity-50"><LogOut size={16} /></button>
+        </div>
       </div>
 
-      {/* incoming requests */}
-      {incoming.length > 0 && (
-        <div className="flex flex-col gap-2 mb-5 pb-5">
-          <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)" }}>Requests</p>
-          {incoming.map((f) => {
-            const p = profiles[f.requester];
-            return (
-              <div key={f.id} className="flex items-center justify-between">
-                <span className="text-sm" style={{ color: "#fff" }}>{p ? (p.display_name || p.username) : "…"}</span>
-                <div className="flex gap-3">
-                  <button onClick={() => accept(f.id)} style={{ color: "rgba(120,220,120,0.9)" }}><Check size={16} /></button>
-                  <button onClick={() => remove(f.id)} style={{ color: "rgba(255,255,255,0.3)" }}><X size={16} /></button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {showFriends ? (
+        /* ── Friends management ── */
+        <div className="flex flex-col">
+          {incoming.length > 0 && (
+            <div className="flex flex-col gap-2 mb-6">
+              <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)" }}>Requests</p>
+              {incoming.map((f) => {
+                const p = profiles[f.requester];
+                return (
+                  <div key={f.id} className="flex items-center justify-between py-1">
+                    <span className="text-sm" style={{ color: "#fff" }}>{p ? (p.display_name || p.username) : "…"}</span>
+                    <div className="flex gap-3">
+                      <button onClick={() => accept(f.id)} style={{ color: "rgba(120,220,120,0.9)" }}><Check size={16} /></button>
+                      <button onClick={() => remove(f.id)} style={{ color: "rgba(255,255,255,0.3)" }}><X size={16} /></button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
+          <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.35)" }}>Friends</p>
+          {accepted.length === 0 ? (
+            <p className="text-sm py-2" style={{ color: "rgba(255,255,255,0.3)" }}>No friends yet. Add some below.</p>
+          ) : (
+            accepted.map(({ friendshipId, profile: p }) => (
+              <div key={friendshipId} className="flex items-center justify-between py-3">
+                <span className="text-sm" style={{ color: "#fff" }}>{p ? (p.display_name || p.username) : "…"}</span>
+                {confirmId === friendshipId ? (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Remove?</span>
+                    <button onClick={() => remove(friendshipId)} className="text-xs font-medium" style={{ color: "rgba(255,90,90,0.9)" }}>Yes</button>
+                    <button onClick={() => setConfirmId(null)} className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.4)" }}>No</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmId(friendshipId)} style={{ color: "rgba(255,255,255,0.25)" }} className="active:opacity-50"><X size={16} /></button>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+      <>
       {/* time + sort */}
       <div className="flex gap-4 mb-3">
         {(["week", "month", "year"] as TimeRange[]).map((r) => (
@@ -390,6 +432,8 @@ function Leaderboard({ profile, onSignOut }: { profile: Profile; onSignOut: () =
         <p className="text-xs text-center mt-6" style={{ color: "rgba(255,255,255,0.3)" }}>
           Add friends to see how you compare.
         </p>
+      )}
+      </>
       )}
 
       {/* add friend */}
