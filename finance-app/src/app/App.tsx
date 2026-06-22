@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Receipt, BarChart2, Tag, X, ChevronLeft, ChevronRight, Plus, Trash2, Trophy } from "lucide-react";
-import { useLocalStorage } from "./useLocalStorage";
 
 type Category = { id: string; name: string };
 type Expense = {
@@ -71,15 +70,15 @@ function ExpensesTab({
   return (
     <div className="flex flex-col px-5">
       {/* Big amount field at top */}
-      <div className="pt-2 pb-6 flex flex-col items-center" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="pt-10 pb-8 flex flex-col items-center" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         <p className="text-xs uppercase tracking-widest mb-4" style={{ color: "rgba(255,255,255,0.25)" }}>
           Amount
         </p>
-        <div className="flex items-start justify-center w-full">
+        <div className="flex items-start">
           <span className="text-4xl font-light mt-2 mr-1" style={{ color: "rgba(255,255,255,0.4)" }}>$</span>
           <input
-            style={{ background: "transparent", color: "#fff", width: `${Math.max(1, (amount.length || 1))}ch` }}
-            className="text-7xl font-bold outline-none p-[0px]"
+            style={{ background: "transparent", color: "#fff", width: `${Math.max(3, (amount.length || 1) + 1)}ch` }}
+            className="text-7xl font-bold outline-none text-center min-w-[3ch] p-[0px]"
             placeholder="0"
             type="number"
             min="0"
@@ -147,17 +146,17 @@ function ExpensesTab({
                 className="flex items-center justify-between py-4"
                 style={{ borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
               >
-                <span className="text-sm font-semibold mr-4 shrink-0" style={{ color: "#fff" }}>
-                  {fmt(exp.amount)}
-                </span>
-                <div className="flex-1 min-w-0 text-right mr-4">
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium" style={{ color: "#fff" }}>
                     {exp.description}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-                    {exp.category} – {exp.date}
+                    {exp.category} · {exp.date}
                   </p>
                 </div>
+                <span className="text-sm font-semibold mx-4" style={{ color: "#fff" }}>
+                  {fmt(exp.amount)}
+                </span>
                 <button
                   onClick={() => onDelete(exp.id)}
                   style={{ color: "rgba(255,255,255,0.2)" }}
@@ -175,45 +174,13 @@ function ExpensesTab({
 
 // ─── Summary Tab ─────────────────────────────────────────────────────────────
 
-type SummaryView = "daily" | "weekly" | "monthly";
-
-function dayLabel(date: Date) {
-  return date.toLocaleDateString("default", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
-}
-
-function weekLabel(start: Date) {
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  const s = start.toLocaleDateString("default", { month: "short", day: "numeric" });
-  const e = end.toLocaleDateString("default", { month: "short", day: "numeric", year: "numeric" });
-  return `${s} – ${e}`;
-}
-
-function startOfWeek(date: Date) {
-  const d = new Date(date);
-  d.setDate(d.getDate() - d.getDay());
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function sameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-
-function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; view: SummaryView; onViewChange: (v: SummaryView) => void }) {
+function SummaryTab({ expenses }: { expenses: Expense[] }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
-  const [day, setDay] = useState(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
-  const [weekStart, setWeekStart] = useState(startOfWeek(now));
 
   const filtered = expenses.filter((e) => {
-    const d = new Date(e.date + "T00:00:00");
-    if (view === "daily") return sameDay(d, day);
-    if (view === "weekly") {
-      const ws = startOfWeek(d);
-      return ws.getTime() === weekStart.getTime();
-    }
+    const d = new Date(e.date);
     return d.getFullYear() === year && d.getMonth() === month;
   });
 
@@ -228,55 +195,26 @@ function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; vie
 
   const catList = Object.entries(byCategory).sort((a, b) => b[1].sum - a[1].sum);
 
-  function prev() {
-    if (view === "daily") {
-      setDay((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
-    } else if (view === "weekly") {
-      setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return n; });
-    } else {
-      if (month === 0) { setMonth(11); setYear((y) => y - 1); }
-      else setMonth((m) => m - 1);
-    }
+  function prevMonth() {
+    if (month === 0) { setMonth(11); setYear((y) => y - 1); }
+    else setMonth((m) => m - 1);
   }
-  function next() {
-    if (view === "daily") {
-      setDay((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return n; });
-    } else if (view === "weekly") {
-      setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return n; });
-    } else {
-      if (month === 11) { setMonth(0); setYear((y) => y + 1); }
-      else setMonth((m) => m + 1);
-    }
+  function nextMonth() {
+    if (month === 11) { setMonth(0); setYear((y) => y + 1); }
+    else setMonth((m) => m + 1);
   }
-
-  const periodLabel = view === "daily" ? dayLabel(day) : view === "weekly" ? weekLabel(weekStart) : monthLabel(year, month);
-  const emptyLabel = view === "daily" ? "No expenses this day." : view === "weekly" ? "No expenses this week." : "No expenses this month.";
 
   return (
     <div className="flex flex-col px-5 py-5">
-      {/* View toggle */}
-      <div className="flex gap-4 pb-5 mb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        {(["daily", "weekly", "monthly"] as SummaryView[]).map((v) => (
-          <button
-            key={v}
-            onClick={() => onViewChange(v)}
-            className="text-sm font-medium transition-opacity"
-            style={{ color: view === v ? "#fff" : "rgba(255,255,255,0.25)" }}
-          >
-            {v.charAt(0).toUpperCase() + v.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      {/* Period selector */}
+      {/* Month selector */}
       <div className="flex items-center justify-between pb-6 mb-6" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <button onClick={prev} style={{ color: "rgba(255,255,255,0.3)" }} className="active:opacity-50">
+        <button onClick={prevMonth} style={{ color: "rgba(255,255,255,0.3)" }} className="active:opacity-50">
           <ChevronLeft size={20} />
         </button>
         <span className="text-sm font-medium" style={{ color: "#fff" }}>
-          {periodLabel}
+          {monthLabel(year, month)}
         </span>
-        <button onClick={next} style={{ color: "rgba(255,255,255,0.3)" }} className="active:opacity-50">
+        <button onClick={nextMonth} style={{ color: "rgba(255,255,255,0.3)" }} className="active:opacity-50">
           <ChevronRight size={20} />
         </button>
       </div>
@@ -294,7 +232,7 @@ function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; vie
       {/* Category breakdown */}
       {catList.length === 0 ? (
         <p className="text-sm text-center mt-6" style={{ color: "rgba(255,255,255,0.3)" }}>
-          {emptyLabel}
+          No expenses this month.
         </p>
       ) : (
         <div className="flex flex-col">
@@ -647,9 +585,8 @@ type Tab = "expenses" | "summary" | "category" | "leaderboard";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("expenses");
-  const [expenses, setExpenses] = useLocalStorage<Expense[]>('expenses', []);
-  const [categories, setCategories] = useLocalStorage<Category[]>('categories', DEFAULT_CATEGORIES);
-  const [summaryView, setSummaryView] = useLocalStorage<SummaryView>('summaryView', 'monthly');
+  const [expenses, setExpenses] = useState<Expense[]>(SAMPLE_EXPENSES);
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
 
   function addExpense(e: Omit<Expense, "id">) {
     setExpenses((prev) => [{ ...e, id: "e" + Date.now() }, ...prev]);
@@ -674,13 +611,8 @@ export default function App() {
   return (
     <div
       className="size-full flex flex-col"
-      style={{ fontFamily: "'Inter', sans-serif", background: BG, color: "#fff", paddingTop: "env(safe-area-inset-top)" }}
+      style={{ fontFamily: "'Inter', sans-serif", background: BG, color: "#fff" }}
     >
-      {/* Header */}
-      <div className="px-5 pt-2">
-        <span className="text-sm" style={{ color: "rgba(255,255,255,0.12)", fontFamily: "'Gill Sans MT Condensed', 'Gill Sans', sans-serif", fontStyle: "italic", transform: "rotate(20deg)", display: "inline-block" }}>$</span>
-      </div>
-
       {/* Content */}
       <div className="flex-1 overflow-y-auto pb-20">
         {tab === "expenses" && (
@@ -691,7 +623,7 @@ export default function App() {
             onDelete={deleteExpense}
           />
         )}
-        {tab === "summary" && <SummaryTab expenses={expenses} view={summaryView} onViewChange={setSummaryView} />}
+        {tab === "summary" && <SummaryTab expenses={expenses} />}
         {tab === "leaderboard" && <LeaderboardTab expenses={expenses} />}
         {tab === "category" && (
           <CategoryTab
@@ -705,7 +637,7 @@ export default function App() {
       {/* Bottom tab bar */}
       <div
         className="shrink-0 fixed bottom-0 left-0 right-0 flex"
-        style={{ background: BG, borderTop: "1px solid rgba(255,255,255,0.06)", paddingBottom: "env(safe-area-inset-bottom)" }}
+        style={{ background: BG, borderTop: "1px solid rgba(255,255,255,0.06)" }}
       >
         {tabs.map(({ id, label, icon }) => {
           const active = tab === id;
