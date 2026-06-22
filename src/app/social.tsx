@@ -42,16 +42,17 @@ export function useSession() {
 // ── cloud sync: mirror local expenses up so totals exist for the leaderboard ──
 
 export async function pushAllExpenses(userId: string, expenses: Expense[]) {
-  // Upsert everything we have locally...
+  // Upsert everything we have locally. Dedupe by id first — a duplicate id in a
+  // single upsert batch makes Postgres reject the whole statement.
   if (expenses.length > 0) {
-    const rows = expenses.map((e) => ({
-      id: e.id,
-      user_id: userId,
-      amount: e.amount,
-      category: e.category,
-      description: e.description,
-      date: e.date,
-    }));
+    const rows = [
+      ...new Map(
+        expenses.map((e) => [
+          e.id,
+          { id: e.id, user_id: userId, amount: e.amount, category: e.category, description: e.description, date: e.date },
+        ])
+      ).values(),
+    ];
     await supabase.from("expenses").upsert(rows);
   }
   // ...then drop any cloud rows that no longer exist locally.

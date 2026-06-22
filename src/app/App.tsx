@@ -32,6 +32,13 @@ const SAMPLE_EXPENSES: Expense[] = [
 
 const BG = "#111111";
 
+// Unique id — Date.now() collides when many expenses are added in one tick
+// (e.g. CSV import), which breaks the cloud upsert (id is the primary key).
+function uid() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
 function fmt(n: number) {
   return "$" + n.toFixed(2);
 }
@@ -498,6 +505,22 @@ export default function App() {
   const { session } = useSession();
   const [lbRefresh, setLbRefresh] = useState(0);
 
+  // One-time repair: older builds used Date.now() ids, so batch-imported
+  // expenses can share an id. Re-key any duplicates so they sync correctly.
+  useEffect(() => {
+    setExpenses((prev) => {
+      const seen = new Set<string>();
+      let changed = false;
+      const fixed = prev.map((e) => {
+        if (seen.has(e.id)) { changed = true; return { ...e, id: uid() }; }
+        seen.add(e.id);
+        return e;
+      });
+      return changed ? fixed : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // When signed in, mirror local expenses to the cloud so friends' leaderboards
   // can read the totals. Debounced so rapid edits batch into one push.
   useEffect(() => {
@@ -519,13 +542,13 @@ export default function App() {
   }, [tab, session]);
 
   function addExpense(e: Omit<Expense, "id">) {
-    setExpenses((prev) => [{ ...e, id: "e" + Date.now() }, ...prev]);
+    setExpenses((prev) => [{ ...e, id: uid() }, ...prev]);
   }
   function deleteExpense(id: string) {
     setExpenses((prev) => prev.filter((e) => e.id !== id));
   }
   function addCategory(name: string) {
-    setCategories((prev) => [...prev, { id: "c" + Date.now(), name }]);
+    setCategories((prev) => [...prev, { id: uid(), name }]);
   }
   function deleteCategory(id: string) {
     setCategories((prev) => prev.filter((c) => c.id !== id));
