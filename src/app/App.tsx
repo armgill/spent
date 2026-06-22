@@ -713,7 +713,7 @@ export default function App() {
             <button
               key={id}
               onClick={() => setTab(id)}
-              className="flex-1 flex flex-col items-center justify-center gap-1 py-2 transition-opacity"
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1 transition-opacity"
               style={{ color: active ? "#fff" : "rgba(255,255,255,0.25)" }}
             >
               {icon}
