@@ -496,6 +496,7 @@ export default function App() {
   const [categories, setCategories] = useLocalStorage<Category[]>('categories', DEFAULT_CATEGORIES);
   const [summaryView, setSummaryView] = useLocalStorage<SummaryView>('summaryView', 'monthly');
   const { session } = useSession();
+  const [lbRefresh, setLbRefresh] = useState(0);
 
   // When signed in, mirror local expenses to the cloud so friends' leaderboards
   // can read the totals. Debounced so rapid edits batch into one push.
@@ -504,6 +505,18 @@ export default function App() {
     const t = setTimeout(() => { pushAllExpenses(session.user.id, expenses); }, 600);
     return () => clearTimeout(t);
   }, [session, expenses]);
+
+  // On opening the Leaderboard, flush the latest expenses to the cloud, then
+  // force the leaderboard to remount so it loads fresh totals.
+  useEffect(() => {
+    if (tab !== "leaderboard" || !session) return;
+    let cancelled = false;
+    pushAllExpenses(session.user.id, expenses).then(() => {
+      if (!cancelled) setLbRefresh((k) => k + 1);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, session]);
 
   function addExpense(e: Omit<Expense, "id">) {
     setExpenses((prev) => [{ ...e, id: "e" + Date.now() }, ...prev]);
@@ -546,7 +559,7 @@ export default function App() {
           />
         )}
         {tab === "summary" && <SummaryTab expenses={expenses} view={summaryView} onViewChange={setSummaryView} />}
-        {tab === "leaderboard" && <LeaderboardTab session={session} />}
+        {tab === "leaderboard" && <LeaderboardTab key={lbRefresh} session={session} />}
         {tab === "category" && (
           <CategoryTab
             categories={categories}

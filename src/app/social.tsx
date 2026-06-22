@@ -309,7 +309,7 @@ function Leaderboard({ profile, onSignOut }: { profile: Profile; onSignOut: () =
     .map((f) => ({ friendshipId: f.id, profile: profiles[f.requester === profile.id ? f.addressee : f.requester] }));
 
   const sorted = [...totals].sort((a, b) => order === "most" ? b.total - a.total : a.total - b.total);
-  const showPodium = sorted.length >= 3;
+  const showPodium = sorted.length >= 2;
   const top3 = sorted.slice(0, 3);
   const listEntries = showPodium ? sorted.slice(3) : sorted;
   const listRankOffset = showPodium ? 4 : 1;
