@@ -1,6 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Receipt, BarChart2, Tag, X, ChevronLeft, ChevronRight, Plus, Trash2, Trophy, Upload } from "lucide-react";
 import { useLocalStorage } from "./useLocalStorage";
+import { useSession, pushAllExpenses, LeaderboardTab } from "./social";
 
 type Category = { id: string; name: string };
 type Expense = {
@@ -463,241 +464,6 @@ function CategoryTab({
   );
 }
 
-// ─── Leaderboard Tab ──────────────────────────────────────────────────────────
-
-const LEADERBOARD_USERS = [
-  { id: "u1", name: "Jordan", avatar: "J", total: 312.45 },
-  { id: "u2", name: "Alex", avatar: "A", total: 278.10 },
-  { id: "u3", name: "Sam", avatar: "S", total: 245.60 },
-  { id: "u4", name: "Morgan", avatar: "M", total: 198.30 },
-  { id: "u5", name: "Riley", avatar: "R", total: 154.75 },
-  { id: "u6", name: "Casey", avatar: "C", total: 120.00 },
-  { id: "u7", name: "Taylor", avatar: "T", total: 89.50 },
-];
-
-type SortOrder = "most" | "least";
-type TimeRange = "week" | "month" | "year";
-
-function PodiumBlock({
-  rank,
-  user,
-  isMe,
-  height,
-  medalColor,
-  medalLabel,
-}: {
-  rank: number;
-  user: { name: string; avatar: string; total: number };
-  isMe: boolean;
-  height: number;
-  medalColor: string;
-  medalLabel: string;
-}) {
-  return (
-    <div className="flex flex-col items-center" style={{ width: "30%" }}>
-      {/* Avatar + name above podium */}
-      <div
-        className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold mb-1"
-        style={{
-          background: isMe ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.09)",
-          color: isMe ? "#fff" : "rgba(255,255,255,0.6)",
-        }}
-      >
-        {user.avatar}
-      </div>
-      <p className="text-xs font-medium mb-0.5 text-center truncate w-full px-1" style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.75)" }}>
-        {user.name}
-      </p>
-      <p className="text-[10px] mb-2 text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
-        {fmt(user.total)}
-      </p>
-      {/* Podium block */}
-      <div
-        className="w-full rounded-t-lg flex flex-col items-center justify-start relative"
-        style={{ height, background: "rgba(255,255,255,0.07)" }}
-      >
-        {/* Ribbon */}
-        <div className="w-[3px] rounded-full" style={{ height: 18, background: medalColor, opacity: 0.7 }} />
-        {/* Medal */}
-        <div
-          className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shadow-lg"
-          style={{
-            background: `radial-gradient(circle at 35% 35%, ${medalColor}, ${medalColor}99)`,
-            color: "#111",
-            boxShadow: `0 2px 8px ${medalColor}55`,
-          }}
-        >
-          {rank}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LeaderboardTab({ expenses }: { expenses: Expense[] }) {
-  const [order, setOrder] = useState<SortOrder>("most");
-  const [range, setRange] = useState<TimeRange>("month");
-  const [showAdd, setShowAdd] = useState(false);
-  const [friendName, setFriendName] = useState("");
-  const [friends, setFriends] = useState<typeof LEADERBOARD_USERS>([...LEADERBOARD_USERS]);
-
-  const now = new Date();
-  const cutoff = new Date(now);
-  if (range === "week") cutoff.setDate(now.getDate() - 7);
-  else if (range === "month") cutoff.setMonth(now.getMonth() - 1);
-  else cutoff.setFullYear(now.getFullYear() - 1);
-
-  const myTotal = expenses
-    .filter((e) => new Date(e.date) >= cutoff)
-    .reduce((s, e) => s + e.amount, 0);
-
-  const rangeMultiplier = range === "week" ? 0.25 : range === "month" ? 1 : 12;
-  const scaled = friends.map((u) => ({ ...u, total: +(u.total * rangeMultiplier).toFixed(2) }));
-  const myEntry = { id: "me", name: "You", avatar: "Y", total: myTotal };
-  const all = [...scaled, myEntry].sort((a, b) =>
-    order === "most" ? b.total - a.total : a.total - b.total
-  );
-
-  const top3 = all.slice(0, 3);
-  const rest = all.slice(3);
-
-  // Podium order: 2nd left, 1st centre, 3rd right
-  const podiumOrder = [top3[1], top3[0], top3[2]].filter(Boolean);
-  const podiumConfig = [
-    { height: 90, medalColor: "#C0C0C0", medalLabel: "SILVER" },
-    { height: 120, medalColor: "#FFD700", medalLabel: "GOLD" },
-    { height: 70, medalColor: "#CD7F32", medalLabel: "BRONZE" },
-  ];
-  const podiumRanks = [2, 1, 3];
-
-  function addFriend() {
-    const t = friendName.trim();
-    if (!t) return;
-    setFriends((prev) => [...prev, { id: "f" + Date.now(), name: t, avatar: t[0].toUpperCase(), total: Math.round(Math.random() * 300 + 50) }]);
-    setFriendName("");
-    setShowAdd(false);
-  }
-
-  return (
-    <div className="flex flex-col px-5 py-5 pb-36">
-      {/* Time range row */}
-      <div className="flex gap-4 mb-3">
-        {(["week", "month", "year"] as TimeRange[]).map((r) => (
-          <button
-            key={r}
-            onClick={() => setRange(r)}
-            className="text-sm font-medium transition-opacity"
-            style={{ color: range === r ? "#fff" : "rgba(255,255,255,0.25)" }}
-          >
-            {r.charAt(0).toUpperCase() + r.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      {/* Sort row */}
-      <div className="flex gap-4 mb-8" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: "16px" }}>
-        {(["most", "least"] as SortOrder[]).map((o) => (
-          <button
-            key={o}
-            onClick={() => setOrder(o)}
-            className="text-sm font-medium transition-opacity"
-            style={{ color: order === o ? "#fff" : "rgba(255,255,255,0.25)" }}
-          >
-            {o === "most" ? "Most Spent" : "Least Spent"}
-          </button>
-        ))}
-      </div>
-
-      {/* Podium */}
-      {top3.length >= 2 && (
-        <div className="flex items-end justify-center gap-2 mb-8">
-          {podiumOrder.map((user, i) => {
-            if (!user) return null;
-            const cfg = podiumConfig[i];
-            const rank = podiumRanks[i];
-            const isMe = user.id === "me";
-            return (
-              <PodiumBlock
-                key={user.id}
-                rank={rank}
-                user={user}
-                isMe={isMe}
-                height={cfg.height}
-                medalColor={cfg.medalColor}
-                medalLabel={cfg.medalLabel}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      {/* 4th+ list */}
-      {rest.length > 0 && (
-        <div className="flex flex-col">
-          {rest.map((user, i, arr) => {
-            const isMe = user.id === "me";
-            const rank = i + 4;
-            return (
-              <div
-                key={user.id}
-                className="flex items-center gap-4 py-3.5"
-                style={{ borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
-              >
-                <span className="text-sm w-5 shrink-0 text-right" style={{ color: "rgba(255,255,255,0.2)" }}>
-                  {rank}
-                </span>
-                <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                  style={{
-                    background: isMe ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.07)",
-                    color: isMe ? "#fff" : "rgba(255,255,255,0.4)",
-                  }}
-                >
-                  {user.avatar}
-                </div>
-                <span className="flex-1 text-sm" style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.6)" }}>
-                  {user.name}
-                </span>
-                <span className="text-sm font-medium" style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.4)" }}>
-                  {fmt(user.total)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Add friend */}
-      <div className="fixed bottom-16 left-0 right-0 px-5 py-4" style={{ background: BG, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-        {showAdd ? (
-          <div className="flex items-center gap-3">
-            <input
-              autoFocus
-              style={{ background: "transparent", color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.2)" }}
-              className="flex-1 py-1.5 text-sm outline-none placeholder:opacity-30"
-              placeholder="Friend's name"
-              value={friendName}
-              onChange={(e) => setFriendName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addFriend()}
-            />
-            <button onClick={addFriend} className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>Add</button>
-            <button onClick={() => setShowAdd(false)} style={{ color: "rgba(255,255,255,0.25)" }}><X size={15} /></button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 text-sm font-medium"
-            style={{ color: "rgba(255,255,255,0.4)" }}
-          >
-            <Plus size={15} />
-            Add Friend
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 type Tab = "expenses" | "summary" | "category" | "leaderboard";
@@ -707,6 +473,15 @@ export default function App() {
   const [expenses, setExpenses] = useLocalStorage<Expense[]>('expenses', []);
   const [categories, setCategories] = useLocalStorage<Category[]>('categories', DEFAULT_CATEGORIES);
   const [summaryView, setSummaryView] = useLocalStorage<SummaryView>('summaryView', 'monthly');
+  const { session } = useSession();
+
+  // When signed in, mirror local expenses to the cloud so friends' leaderboards
+  // can read the totals. Debounced so rapid edits batch into one push.
+  useEffect(() => {
+    if (!session) return;
+    const t = setTimeout(() => { pushAllExpenses(session.user.id, expenses); }, 600);
+    return () => clearTimeout(t);
+  }, [session, expenses]);
 
   function addExpense(e: Omit<Expense, "id">) {
     setExpenses((prev) => [{ ...e, id: "e" + Date.now() }, ...prev]);
@@ -749,7 +524,7 @@ export default function App() {
           />
         )}
         {tab === "summary" && <SummaryTab expenses={expenses} view={summaryView} onViewChange={setSummaryView} />}
-        {tab === "leaderboard" && <LeaderboardTab expenses={expenses} />}
+        {tab === "leaderboard" && <LeaderboardTab session={session} />}
         {tab === "category" && (
           <CategoryTab
             categories={categories}
