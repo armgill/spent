@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Receipt, BarChart2, Tag, X, ChevronLeft, ChevronRight, Plus, Trash2, Trophy } from "lucide-react";
+import { useState, useRef } from "react";
+import { Receipt, BarChart2, Tag, X, ChevronLeft, ChevronRight, Plus, Trash2, Trophy, Upload } from "lucide-react";
 import { useLocalStorage } from "./useLocalStorage";
 
 type Category = { id: string; name: string };
@@ -41,6 +41,43 @@ function monthLabel(year: number, month: number) {
 
 // ─── Expenses Tab ─────────────────────────────────────────────────────────────
 
+function parseCSV(text: string): Omit<Expense, "id">[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length === 0) return [];
+
+  const header = lines[0].toLowerCase();
+  const hasHeader = header.includes("expense") || header.includes("type") || header.includes("note") || header.includes("date");
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+  const today = new Date().toISOString().slice(0, 10);
+
+  return dataLines
+    .map((line) => {
+      const cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+      const dateCol = cols[0] || "";
+      const amountStr = cols[1] || "";
+      const category = cols[2] || "Other";
+      const description = cols[3] || "";
+
+      const num = parseFloat(amountStr.replace(/^\$/, ""));
+      if (isNaN(num) || num === 0) return null;
+
+      const hasDate = /^\d{4}-\d{2}-\d{2}$/.test(dateCol) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(dateCol);
+      let date = today;
+      if (hasDate) {
+        if (dateCol.includes("/")) {
+          const parts = dateCol.split("/");
+          const y = parts[2].length === 2 ? "20" + parts[2] : parts[2];
+          date = `${y}-${parts[0].padStart(2, "0")}-${parts[1].padStart(2, "0")}`;
+        } else {
+          date = dateCol;
+        }
+      }
+
+      return { amount: Math.abs(num), category, description, date };
+    })
+    .filter(Boolean) as Omit<Expense, "id">[];
+}
+
 function ExpensesTab({
   expenses,
   categories,
@@ -57,6 +94,19 @@ function ExpensesTab({
   const [cat, setCat] = useState(categories[0]?.name ?? "");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [error, setError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const items = parseCSV(reader.result as string);
+      items.forEach((item) => onAdd(item));
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
 
   function submit() {
     if (!desc.trim()) return setError("Enter a description.");
@@ -71,7 +121,15 @@ function ExpensesTab({
   return (
     <div className="flex flex-col px-5">
       {/* Big amount field at top */}
-      <div className="pt-2 pb-6 flex flex-col items-center" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="pt-2 pb-6 flex flex-col items-center relative" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <input ref={fileRef} type="file" accept=".csv" onChange={handleImport} className="hidden" />
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="absolute right-0 top-2 active:opacity-50"
+          style={{ color: "rgba(255,255,255,0.2)" }}
+        >
+          <Upload size={16} />
+        </button>
         <p className="text-xs uppercase tracking-widest mb-4" style={{ color: "rgba(255,255,255,0.25)" }}>
           Amount
         </p>
@@ -145,7 +203,6 @@ function ExpensesTab({
               <div
                 key={exp.id}
                 className="flex items-center justify-between py-4"
-                style={{ borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
               >
                 <span className="text-sm font-semibold mr-4 shrink-0" style={{ color: "#fff" }}>
                   {fmt(exp.amount)}
@@ -705,7 +762,7 @@ export default function App() {
       {/* Bottom tab bar */}
       <div
         className="shrink-0 fixed bottom-0 left-0 right-0 flex"
-        style={{ background: BG, borderTop: "1px solid rgba(255,255,255,0.06)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        style={{ background: BG, paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         {tabs.map(({ id, label, icon }) => {
           const active = tab === id;
