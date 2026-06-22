@@ -172,9 +172,18 @@ function UsernameSetup({ userId, onDone }: { userId: string; onDone: (p: Profile
       return setError("3–20 chars: letters, numbers, underscores.");
     }
     setBusy(true);
+    // One username per account: if this user already has a profile, use it
+    // rather than ever creating a second.
+    const { data: existing } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+    if (existing) {
+      setBusy(false);
+      onDone(existing as Profile);
+      return;
+    }
     const { error } = await supabase.from("profiles").insert({ id: userId, username: u, display_name: username.trim() });
     setBusy(false);
     if (error) {
+      // 23505 here means the username is taken (the id-conflict case is handled above).
       setError(error.code === "23505" ? "That username is taken." : error.message);
       return;
     }
