@@ -116,10 +116,8 @@ function AuthForm() {
         Continue with Google
       </button>
 
-      <div className="flex items-center gap-3 my-1">
-        <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
+      <div className="flex items-center justify-center my-1">
         <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>or</span>
-        <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
       </div>
 
       <input
@@ -127,7 +125,7 @@ function AuthForm() {
         placeholder="Email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        style={{ background: "transparent", color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.12)" }}
+        style={{ background: "transparent", color: "#fff" }}
         className="w-full py-2 text-sm outline-none placeholder:opacity-30"
       />
       <input
@@ -136,7 +134,7 @@ function AuthForm() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && submit()}
-        style={{ background: "transparent", color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.12)" }}
+        style={{ background: "transparent", color: "#fff" }}
         className="w-full py-2 text-sm outline-none placeholder:opacity-30"
       />
 
@@ -156,7 +154,7 @@ function AuthForm() {
         className="text-xs"
         style={{ color: "rgba(255,255,255,0.4)" }}
       >
-        {mode === "signin" ? "Need an account? Sign up" : "Have an account? Sign in"}
+        {mode === "signin" ? "Sign up" : "Sign in"}
       </button>
     </div>
   );
@@ -193,7 +191,7 @@ function UsernameSetup({ userId, onDone }: { userId: string; onDone: (p: Profile
         value={username}
         onChange={(e) => setUsername(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && save()}
-        style={{ background: "transparent", color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.12)" }}
+        style={{ background: "transparent", color: "#fff" }}
         className="w-full py-2 text-sm outline-none placeholder:opacity-30"
       />
       {error && <p className="text-xs" style={{ color: "rgba(255,80,80,0.8)" }}>{error}</p>}
@@ -253,7 +251,7 @@ function PodiumBlock({ rank, entry, isMe, height, medalColor }: {
 
 function Leaderboard({ profile, onSignOut }: { profile: Profile; onSignOut: () => void }) {
   const [range, setRange] = useState<TimeRange>("month");
-  const [order, setOrder] = useState<SortOrder>("most");
+  const [order, setOrder] = useState<SortOrder>("least");
   const [totals, setTotals] = useState<FriendTotal[]>([]);
   const [friendships, setFriendships] = useState<Friendship[]>([]);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
@@ -305,8 +303,10 @@ function Leaderboard({ profile, onSignOut }: { profile: Profile; onSignOut: () =
   const incoming = friendships.filter((f) => f.addressee === profile.id && f.status === "pending");
 
   const sorted = [...totals].sort((a, b) => order === "most" ? b.total - a.total : a.total - b.total);
+  const showPodium = sorted.length >= 3;
   const top3 = sorted.slice(0, 3);
-  const rest = sorted.slice(3);
+  const listEntries = showPodium ? sorted.slice(3) : sorted;
+  const listRankOffset = showPodium ? 4 : 1;
   const podiumOrder = [top3[1], top3[0], top3[2]].filter(Boolean) as FriendTotal[];
   const podiumCfg = [
     { height: 90, color: "#C0C0C0", rank: 2 },
@@ -324,7 +324,7 @@ function Leaderboard({ profile, onSignOut }: { profile: Profile; onSignOut: () =
 
       {/* incoming requests */}
       {incoming.length > 0 && (
-        <div className="flex flex-col gap-2 mb-5 pb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="flex flex-col gap-2 mb-5 pb-5">
           <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)" }}>Requests</p>
           {incoming.map((f) => {
             const p = profiles[f.requester];
@@ -350,7 +350,7 @@ function Leaderboard({ profile, onSignOut }: { profile: Profile; onSignOut: () =
           </button>
         ))}
       </div>
-      <div className="flex gap-4 mb-8 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="flex gap-4 mb-8 pb-4">
         {(["most", "least"] as SortOrder[]).map((o) => (
           <button key={o} onClick={() => setOrder(o)} className="text-sm font-medium"
             style={{ color: order === o ? "#fff" : "rgba(255,255,255,0.25)" }}>
@@ -359,51 +359,47 @@ function Leaderboard({ profile, onSignOut }: { profile: Profile; onSignOut: () =
         ))}
       </div>
 
-      {sorted.length === 0 ? (
-        <p className="text-sm text-center mt-6" style={{ color: "rgba(255,255,255,0.3)" }}>
+      {showPodium && (
+        <div className="flex items-end justify-center gap-2 mb-8">
+          {podiumOrder.map((entry, i) => (
+            <PodiumBlock key={entry.user_id} rank={podiumCfg[i].rank} entry={entry}
+              isMe={entry.user_id === profile.id} height={podiumCfg[i].height} medalColor={podiumCfg[i].color} />
+          ))}
+        </div>
+      )}
+      {listEntries.length > 0 && (
+        <div className="flex flex-col">
+          {listEntries.map((entry, i, arr) => {
+            const isMe = entry.user_id === profile.id;
+            const name = entry.display_name || entry.username;
+            return (
+              <div key={entry.user_id} className="flex items-center gap-4 py-3.5">
+                <span className="text-sm w-5 shrink-0 text-right" style={{ color: "rgba(255,255,255,0.2)" }}>{i + listRankOffset}</span>
+                <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                  style={{ background: isMe ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.07)", color: isMe ? "#fff" : "rgba(255,255,255,0.4)" }}>
+                  {initials(name)}
+                </div>
+                <span className="flex-1 text-sm" style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.6)" }}>{isMe ? "You" : name}</span>
+                <span className="text-sm font-medium" style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.4)" }}>{fmt(entry.total)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {sorted.length <= 1 && (
+        <p className="text-xs text-center mt-6" style={{ color: "rgba(255,255,255,0.3)" }}>
           Add friends to see how you compare.
         </p>
-      ) : (
-        <>
-          {top3.length >= 2 && (
-            <div className="flex items-end justify-center gap-2 mb-8">
-              {podiumOrder.map((entry, i) => (
-                <PodiumBlock key={entry.user_id} rank={podiumCfg[i].rank} entry={entry}
-                  isMe={entry.user_id === profile.id} height={podiumCfg[i].height} medalColor={podiumCfg[i].color} />
-              ))}
-            </div>
-          )}
-          {rest.length > 0 && (
-            <div className="flex flex-col">
-              {rest.map((entry, i, arr) => {
-                const isMe = entry.user_id === profile.id;
-                const name = entry.display_name || entry.username;
-                return (
-                  <div key={entry.user_id} className="flex items-center gap-4 py-3.5"
-                    style={{ borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
-                    <span className="text-sm w-5 shrink-0 text-right" style={{ color: "rgba(255,255,255,0.2)" }}>{i + 4}</span>
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                      style={{ background: isMe ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.07)", color: isMe ? "#fff" : "rgba(255,255,255,0.4)" }}>
-                      {initials(name)}
-                    </div>
-                    <span className="flex-1 text-sm" style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.6)" }}>{isMe ? "You" : name}</span>
-                    <span className="text-sm font-medium" style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.4)" }}>{fmt(entry.total)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
       )}
 
       {/* add friend */}
-      <div className="fixed bottom-16 left-0 right-0 px-5 py-4" style={{ background: BG, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="fixed bottom-16 left-0 right-0 px-5 py-4" style={{ background: BG }}>
         {showAdd ? (
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-3">
               <input autoFocus placeholder="Friend's username" value={addName}
                 onChange={(e) => setAddName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addFriend()}
-                style={{ background: "transparent", color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.2)" }}
+                style={{ background: "transparent", color: "#fff" }}
                 className="flex-1 py-1.5 text-sm outline-none placeholder:opacity-30" />
               <button onClick={addFriend} className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>Send</button>
               <button onClick={() => { setShowAdd(false); setAddMsg(""); }} style={{ color: "rgba(255,255,255,0.25)" }}><X size={15} /></button>

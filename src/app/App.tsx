@@ -122,7 +122,7 @@ function ExpensesTab({
   return (
     <div className="flex flex-col px-5">
       {/* Big amount field at top */}
-      <div className="pt-2 pb-6 flex flex-col items-center relative" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="pt-2 pb-6 flex flex-col items-center relative">
         <input ref={fileRef} type="file" accept=".csv" onChange={handleImport} className="hidden" />
         <button
           onClick={() => fileRef.current?.click()}
@@ -151,9 +151,9 @@ function ExpensesTab({
       </div>
 
       {/* Rest of form */}
-      <div className="flex flex-col gap-3 py-6 mb-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="flex flex-col gap-3 py-6 mb-2">
         <input
-          style={{ background: "transparent", color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.12)" }}
+          style={{ background: "transparent", color: "#fff" }}
           className="w-full py-2 text-sm outline-none placeholder:opacity-30"
           placeholder="Description"
           value={desc}
@@ -161,7 +161,7 @@ function ExpensesTab({
         />
         <div className="flex gap-4">
           <select
-            style={{ background: BG, color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.12)" }}
+            style={{ background: BG, color: "#fff" }}
             className="flex-1 py-2 text-sm outline-none"
             value={cat}
             onChange={(e) => setCat(e.target.value)}
@@ -173,7 +173,7 @@ function ExpensesTab({
             ))}
           </select>
           <input
-            style={{ background: "transparent", color: "rgba(255,255,255,0.5)", borderBottom: "1px solid rgba(255,255,255,0.12)" }}
+            style={{ background: "transparent", color: "rgba(255,255,255,0.5)" }}
             className="flex-1 py-2 text-sm outline-none"
             type="date"
             value={date}
@@ -264,6 +264,7 @@ function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; vie
   const [month, setMonth] = useState(now.getMonth());
   const [day, setDay] = useState(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
   const [weekStart, setWeekStart] = useState(startOfWeek(now));
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const filtered = expenses.filter((e) => {
     const d = new Date(e.date + "T00:00:00");
@@ -277,11 +278,12 @@ function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; vie
 
   const total = filtered.reduce((s, e) => s + e.amount, 0);
 
-  const byCategory: Record<string, { count: number; sum: number }> = {};
+  const byCategory: Record<string, { count: number; sum: number; items: Expense[] }> = {};
   for (const e of filtered) {
-    if (!byCategory[e.category]) byCategory[e.category] = { count: 0, sum: 0 };
+    if (!byCategory[e.category]) byCategory[e.category] = { count: 0, sum: 0, items: [] };
     byCategory[e.category].count++;
     byCategory[e.category].sum += e.amount;
+    byCategory[e.category].items.push(e);
   }
 
   const catList = Object.entries(byCategory).sort((a, b) => b[1].sum - a[1].sum);
@@ -313,7 +315,7 @@ function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; vie
   return (
     <div className="flex flex-col px-5 py-5">
       {/* View toggle */}
-      <div className="flex gap-4 pb-5 mb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="flex gap-4 pb-5 mb-5">
         {(["daily", "weekly", "monthly"] as SummaryView[]).map((v) => (
           <button
             key={v}
@@ -327,7 +329,7 @@ function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; vie
       </div>
 
       {/* Period selector */}
-      <div className="flex items-center justify-between pb-6 mb-6" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="flex items-center justify-between pb-6 mb-6">
         <button onClick={prev} style={{ color: "rgba(255,255,255,0.3)" }} className="active:opacity-50">
           <ChevronLeft size={20} />
         </button>
@@ -340,7 +342,7 @@ function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; vie
       </div>
 
       {/* Total */}
-      <div className="flex items-baseline justify-between pb-6 mb-6" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="flex items-baseline justify-between pb-6 mb-6">
         <span className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)" }}>
           Total
         </span>
@@ -356,33 +358,54 @@ function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; vie
         </p>
       ) : (
         <div className="flex flex-col">
-          {catList.map(([name, { count, sum }], i, arr) => {
+          {catList.map(([name, { count, sum, items }]) => {
             const pct = total > 0 ? (sum / total) * 100 : 0;
+            const isOpen = expanded === name;
             return (
-              <div
-                key={name}
-                className="py-4"
-                style={{ borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: "#fff" }}>
-                      {name}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-                      {count} {count === 1 ? "expense" : "expenses"}
-                    </p>
+              <div key={name} className="py-4">
+                <button
+                  onClick={() => setExpanded(isOpen ? null : name)}
+                  className="w-full text-left active:opacity-60"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: "#fff" }}>
+                        {name}
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+                        {count} {count === 1 ? "expense" : "expenses"}
+                      </p>
+                    </div>
+                    <span className="text-sm font-semibold" style={{ color: "#fff" }}>
+                      {fmt(sum)}
+                    </span>
                   </div>
-                  <span className="text-sm font-semibold" style={{ color: "#fff" }}>
-                    {fmt(sum)}
-                  </span>
-                </div>
-                <div className="h-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${pct}%`, background: "rgba(255,255,255,0.35)" }}
-                  />
-                </div>
+                  <div className="h-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%`, background: "rgba(255,255,255,0.35)" }}
+                    />
+                  </div>
+                </button>
+                {isOpen && (
+                  <div className="flex flex-col gap-2 mt-3 pl-1">
+                    {[...items].sort((a, b) => b.date.localeCompare(a.date)).map((e) => (
+                      <div key={e.id} className="flex items-center justify-between">
+                        <div className="min-w-0">
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>
+                            {e.description || "—"}
+                          </p>
+                          <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+                            {e.date}
+                          </p>
+                        </div>
+                        <span className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.7)" }}>
+                          {fmt(e.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -416,13 +439,13 @@ function CategoryTab({
   return (
     <div className="flex flex-col px-5 py-5">
       {/* Add form */}
-      <div className="flex flex-col gap-3 pb-6 mb-6" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="flex flex-col gap-3 pb-6 mb-6">
         <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)" }}>
           Add Category
         </p>
         <div className="flex items-center gap-4">
           <input
-            style={{ background: "transparent", color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.12)" }}
+            style={{ background: "transparent", color: "#fff" }}
             className="flex-1 py-2 text-sm outline-none placeholder:opacity-30"
             placeholder="Category name"
             value={name}
@@ -441,11 +464,10 @@ function CategoryTab({
 
       {/* List */}
       <div className="flex flex-col">
-        {categories.map((c, i, arr) => (
+        {categories.map((c) => (
           <div
             key={c.id}
             className="flex items-center justify-between py-4"
-            style={{ borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
           >
             <span className="text-sm" style={{ color: "#fff" }}>
               {c.name}
