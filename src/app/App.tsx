@@ -559,7 +559,7 @@ export default function App() {
           />
         )}
         {tab === "summary" && <SummaryTab expenses={expenses} view={summaryView} onViewChange={setSummaryView} />}
-        {tab === "leaderboard" && <LeaderboardTab key={lbRefresh} session={session} />}
+        {tab === "leaderboard" && <LeaderboardTab session={session} refreshKey={lbRefresh} />}
         {tab === "category" && (
           <CategoryTab
             categories={categories}

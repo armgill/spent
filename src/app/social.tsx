@@ -249,7 +249,7 @@ function PodiumBlock({ rank, entry, isMe, height, medalColor }: {
   );
 }
 
-function Leaderboard({ profile, onSignOut }: { profile: Profile; onSignOut: () => void }) {
+function Leaderboard({ profile, onSignOut, refreshKey }: { profile: Profile; onSignOut: () => void; refreshKey: number }) {
   const [range, setRange] = useState<TimeRange>("month");
   const [order, setOrder] = useState<SortOrder>("least");
   const [totals, setTotals] = useState<FriendTotal[]>([]);
@@ -279,7 +279,7 @@ function Leaderboard({ profile, onSignOut }: { profile: Profile; onSignOut: () =
     }
   }, [range, profile.id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   async function addFriend() {
     setAddMsg("");
@@ -462,7 +462,7 @@ function Leaderboard({ profile, onSignOut }: { profile: Profile; onSignOut: () =
 
 // ── exported tab ──────────────────────────────────────────────────────────────
 
-export function LeaderboardTab({ session }: { session: Session | null }) {
+export function LeaderboardTab({ session, refreshKey }: { session: Session | null; refreshKey: number }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [checking, setChecking] = useState(true);
 
@@ -489,5 +489,5 @@ export function LeaderboardTab({ session }: { session: Session | null }) {
   if (!profile) {
     return <div className="px-5"><UsernameSetup userId={session.user.id} onDone={setProfile} /></div>;
   }
-  return <Leaderboard profile={profile} onSignOut={signOut} />;
+  return <Leaderboard profile={profile} onSignOut={signOut} refreshKey={refreshKey} />;
 }
