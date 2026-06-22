@@ -762,7 +762,7 @@ export default function App() {
       {/* Bottom tab bar */}
       <div
         className="shrink-0 fixed bottom-0 left-0 right-0 flex"
-        style={{ background: BG, paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        style={{ background: BG }}
       >
         {tabs.map(({ id, label, icon }) => {
           const active = tab === id;
