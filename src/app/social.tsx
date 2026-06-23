@@ -99,13 +99,6 @@ function AuthForm() {
     setBusy(false);
   }
 
-  async function google() {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin + import.meta.env.BASE_URL },
-    });
-  }
-
   if (sent) {
     return (
       <p className="text-sm text-center mt-10" style={{ color: "rgba(255,255,255,0.5)" }}>
@@ -119,18 +112,6 @@ function AuthForm() {
       <p className="text-xs uppercase tracking-widest text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
         {mode === "signin" ? "Sign in to compare" : "Create an account"}
       </p>
-
-      <button
-        onClick={google}
-        className="w-full py-2.5 rounded-lg text-sm font-medium active:opacity-60"
-        style={{ background: "rgba(255,255,255,0.9)", color: "#111" }}
-      >
-        Continue with Google
-      </button>
-
-      <div className="flex items-center justify-center my-1">
-        <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>or</span>
-      </div>
 
       <input
         type="email"
