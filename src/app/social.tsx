@@ -235,9 +235,11 @@ type SortOrder = "most" | "least";
 
 function rangeStart(range: TimeRange): string {
   const d = new Date();
-  if (range === "week") d.setDate(d.getDate() - 7);
-  else d.setMonth(d.getMonth() - 1);
-  return d.toISOString().slice(0, 10);
+  d.setHours(0, 0, 0, 0);
+  if (range === "week") d.setDate(d.getDate() - d.getDay()); // back to Sunday (start of this week)
+  else d.setDate(1); // first of this month
+  // Format as a LOCAL YYYY-MM-DD so the boundary doesn't shift via UTC.
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function initials(name: string) {
