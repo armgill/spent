@@ -41,6 +41,17 @@ export function useSession() {
 
 // ── cloud sync: mirror local expenses up so totals exist for the leaderboard ──
 
+export async function pullExpenses(userId: string): Promise<Expense[]> {
+  const { data } = await supabase.from("expenses").select("*").eq("user_id", userId);
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    description: (r.description ?? "") as string,
+    amount: Number(r.amount),
+    category: r.category as string,
+    date: r.date as string,
+  }));
+}
+
 export async function pushAllExpenses(userId: string, expenses: Expense[]) {
   // Upsert everything we have locally. Dedupe by id first — a duplicate id in a
   // single upsert batch makes Postgres reject the whole statement.
@@ -219,14 +230,13 @@ function UsernameSetup({ userId, onDone }: { userId: string; onDone: (p: Profile
 
 // ── leaderboard (logged in) ───────────────────────────────────────────────────
 
-type TimeRange = "week" | "month" | "year";
+type TimeRange = "week" | "month";
 type SortOrder = "most" | "least";
 
 function rangeStart(range: TimeRange): string {
   const d = new Date();
   if (range === "week") d.setDate(d.getDate() - 7);
-  else if (range === "month") d.setMonth(d.getMonth() - 1);
-  else d.setFullYear(d.getFullYear() - 1);
+  else d.setMonth(d.getMonth() - 1);
   return d.toISOString().slice(0, 10);
 }
 
@@ -324,9 +334,17 @@ function Leaderboard({ profile, onSignOut, refreshKey }: { profile: Profile; onS
   const listEntries = showPodium ? sorted.slice(3) : sorted;
   const listRankOffset = showPodium ? 4 : 1;
   const podiumOrder = [top3[1], top3[0], top3[2]].filter(Boolean) as FriendTotal[];
+  // 1st is the tallest; 2nd's height closes toward 1st as their totals get
+  // closer (so the gap is proportional to the spending difference). 3rd is fixed.
+  const t1 = top3[0]?.total ?? 0;
+  const t2 = top3[1]?.total ?? 0;
+  const maxT = Math.max(t1, t2);
+  const closeness = maxT === 0 ? 1 : Math.min(t1, t2) / maxT; // 1 = tied, →0 = far apart
+  const h1 = 130;
+  const h2 = Math.round(80 + closeness * (h1 - 80)); // 80…130, always < h1 unless tied
   const podiumCfg = [
-    { height: 90, color: "#C0C0C0", rank: 2 },
-    { height: 120, color: "#FFD700", rank: 1 },
+    { height: h2, color: "#C0C0C0", rank: 2 },
+    { height: h1, color: "#FFD700", rank: 1 },
     { height: 70, color: "#CD7F32", rank: 3 },
   ];
 
@@ -395,7 +413,7 @@ function Leaderboard({ profile, onSignOut, refreshKey }: { profile: Profile; onS
       <>
       {/* time + sort */}
       <div className="flex gap-4 mb-3">
-        {(["week", "month", "year"] as TimeRange[]).map((r) => (
+        {(["week", "month"] as TimeRange[]).map((r) => (
           <button key={r} onClick={() => setRange(r)} className="text-sm font-medium"
             style={{ color: range === r ? "#fff" : "rgba(255,255,255,0.25)" }}>
             {r[0].toUpperCase() + r.slice(1)}

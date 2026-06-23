@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Receipt, BarChart2, Tag, X, ChevronLeft, ChevronRight, Plus, Trash2, Trophy, Upload } from "lucide-react";
 import { useLocalStorage } from "./useLocalStorage";
-import { useSession, pushAllExpenses, LeaderboardTab } from "./social";
+import { useSession, pushAllExpenses, pullExpenses, LeaderboardTab } from "./social";
 
 type Category = { id: string; name: string };
 type Expense = {
@@ -504,6 +504,9 @@ export default function App() {
   const [summaryView, setSummaryView] = useLocalStorage<SummaryView>('summaryView', 'monthly');
   const { session } = useSession();
   const [lbRefresh, setLbRefresh] = useState(0);
+  // Becomes true once cloud expenses have been pulled & merged. Pushing is gated
+  // on this so a fresh device never deletes cloud data before pulling it.
+  const [synced, setSynced] = useState(false);
 
   // One-time repair: older builds used Date.now() ids, so batch-imported
   // expenses can share an id. Re-key any duplicates so they sync correctly.
@@ -521,25 +524,47 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When signed in, mirror local expenses to the cloud so friends' leaderboards
-  // can read the totals. Debounced so rapid edits batch into one push.
+  // On sign-in, pull this account's cloud expenses and merge them into local so
+  // spending follows the account across devices. If a *different* account signs
+  // in on this device, replace local with the cloud copy instead of mixing them.
   useEffect(() => {
-    if (!session) return;
+    if (!session) { setSynced(false); return; }
+    let cancelled = false;
+    (async () => {
+      const cloud = await pullExpenses(session.user.id);
+      if (cancelled) return;
+      const lastUser = localStorage.getItem("syncedUserId");
+      setExpenses((prev) => {
+        if (lastUser && lastUser !== session.user.id) return cloud;
+        const byId = new Map(prev.map((e) => [e.id, e]));
+        for (const e of cloud) if (!byId.has(e.id)) byId.set(e.id, e);
+        return [...byId.values()];
+      });
+      localStorage.setItem("syncedUserId", session.user.id);
+      setSynced(true);
+    })();
+    return () => { cancelled = true; };
+  }, [session, setExpenses]);
+
+  // Once synced, mirror local expenses up to the cloud. Debounced so rapid
+  // edits batch into one push.
+  useEffect(() => {
+    if (!session || !synced) return;
     const t = setTimeout(() => { pushAllExpenses(session.user.id, expenses); }, 600);
     return () => clearTimeout(t);
-  }, [session, expenses]);
+  }, [session, synced, expenses]);
 
   // On opening the Leaderboard, flush the latest expenses to the cloud, then
   // force the leaderboard to remount so it loads fresh totals.
   useEffect(() => {
-    if (tab !== "leaderboard" || !session) return;
+    if (tab !== "leaderboard" || !session || !synced) return;
     let cancelled = false;
     pushAllExpenses(session.user.id, expenses).then(() => {
       if (!cancelled) setLbRefresh((k) => k + 1);
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, session]);
+  }, [tab, session, synced]);
 
   function addExpense(e: Omit<Expense, "id">) {
     setExpenses((prev) => [{ ...e, id: uid() }, ...prev]);
