@@ -272,7 +272,7 @@ function PodiumBlock({ rank, entry, isMe, height, medalColor }: {
 }
 
 function Leaderboard({ profile, onSignOut, refreshKey }: { profile: Profile; onSignOut: () => void; refreshKey: number }) {
-  const [range, setRange] = useState<TimeRange>("month");
+  const [range, setRange] = useState<TimeRange>("week");
   const [order, setOrder] = useState<SortOrder>("least");
   const [totals, setTotals] = useState<FriendTotal[]>([]);
   const [friendships, setFriendships] = useState<Friendship[]>([]);
