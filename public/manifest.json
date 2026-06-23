@@ -1,7 +1,7 @@
 {
   "name": "Spent",
   "short_name": "Spent",
-  "start_url": "/finance-tracker/",
+  "start_url": "/spent/",
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#111111",

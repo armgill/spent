@@ -17,7 +17,7 @@ function figmaAssetResolver() {
 }
 
 export default defineConfig({
-  base: '/finance-tracker/',
+  base: '/spent/',
   plugins: [
     figmaAssetResolver(),
     react(),

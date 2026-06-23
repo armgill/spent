@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "homepage": "https://armgill.github.io/finance-tracker",
+  "homepage": "https://armgill.github.io/spent",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
