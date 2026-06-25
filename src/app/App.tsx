@@ -385,8 +385,8 @@ function EditExpense({
           {error && <p className="text-xs" style={{ color: "rgba(255,80,80,0.8)" }}>{error}</p>}
           <button
             onClick={save}
-            className="w-full py-2.5 mt-2 rounded-lg text-sm font-medium active:opacity-60"
-            style={{ background: "rgba(255,255,255,0.12)", color: "#fff" }}
+            className="w-full py-2.5 mt-2 text-sm font-medium active:opacity-60"
+            style={{ color: "#fff" }}
           >
             Save
           </button>
