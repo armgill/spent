@@ -102,18 +102,18 @@ function AmountField({ value, onChange }: { value: string; onChange: (v: string)
   }
   return (
     <div className="flex items-start justify-center w-full">
-      <span className="amount-font amount-display text-5xl mt-2 mr-1">$</span>
+      <span className="amount-font amount-display text-6xl mt-3 mr-1">$</span>
       <div className="relative">
         <input
           style={{ background: "transparent", color: "transparent", caretColor: "#fff", width: `calc(${Math.max(1, value.length)}ch + 0.3em)` }}
-          className="amount-font text-7xl outline-none p-[0px] block"
+          className="amount-font text-8xl outline-none p-[0px] block text-center"
           type="text"
           inputMode="decimal"
           value={value}
           onChange={(e) => handle(e.target.value)}
         />
         <span
-          className="amount-font amount-display text-7xl absolute inset-0 pointer-events-none whitespace-pre"
+          className="amount-font amount-display text-8xl absolute inset-0 pointer-events-none whitespace-pre text-center"
           style={{ opacity: value ? 1 : 0.35 }}
         >
           {value || "0"}
@@ -345,8 +345,7 @@ function EditExpense({
     >
       <div className="flex items-center gap-1 px-4 py-3">
         <button onClick={onClose} className="flex items-center active:opacity-50" style={{ color: "rgba(255,255,255,0.6)" }}>
-          <ChevronLeft size={24} />
-          <span className="text-sm">Back</span>
+          <ChevronLeft size={26} />
         </button>
       </div>
 
