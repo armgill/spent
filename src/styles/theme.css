@@ -189,3 +189,28 @@
     -moz-appearance: textfield;
   }
 }
+
+/* Apple Cash–style amount: rounded, heavy, with a slow shimmer to feel alive. */
+@keyframes amountShimmer {
+  0% { background-position: 200% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.amount-font {
+  font-family: ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", -apple-system, system-ui, sans-serif;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Gradient + shimmer fill — used on a display layer (works reliably on spans,
+   unlike background-clip:text on <input>). */
+.amount-display {
+  background-image: linear-gradient(110deg, #f5f5f5 0%, #9a9a9a 30%, #ffffff 50%, #9a9a9a 70%, #f5f5f5 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: amountShimmer 5s linear infinite;
+}

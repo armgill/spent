@@ -317,18 +317,20 @@ function Leaderboard({ profile, onSignOut, refreshKey }: { profile: Profile; onS
   const listEntries = showPodium ? sorted.slice(3) : sorted;
   const listRankOffset = showPodium ? 4 : 1;
   const podiumOrder = [top3[1], top3[0], top3[2]].filter(Boolean) as FriendTotal[];
-  // 1st is the tallest; 2nd's height closes toward 1st as their totals get
-  // closer (so the gap is proportional to the spending difference). 3rd is fixed.
+  // 1st is the tallest and constant. 2nd closes toward 1st by their gap, and 3rd
+  // closes toward 2nd by *their* gap — so every step is proportional.
   const t1 = top3[0]?.total ?? 0;
   const t2 = top3[1]?.total ?? 0;
-  const maxT = Math.max(t1, t2);
-  const closeness = maxT === 0 ? 1 : Math.min(t1, t2) / maxT; // 1 = tied, →0 = far apart
+  const t3 = top3[2]?.total ?? 0;
+  const c12 = Math.max(t1, t2) === 0 ? 1 : Math.min(t1, t2) / Math.max(t1, t2); // 1 = tied
+  const c23 = Math.max(t2, t3) === 0 ? 1 : Math.min(t2, t3) / Math.max(t2, t3); // 1 = tied
   const h1 = 130;
-  const h2 = Math.round(80 + closeness * (h1 - 80)); // 80…130, always < h1 unless tied
+  const h2 = Math.round(75 + c12 * (h1 - 75)); // 75…130, ≤ h1
+  const h3 = Math.round(45 + c23 * (h2 - 45)); // 45…h2, ≤ h2
   const podiumCfg = [
     { height: h2, color: "#C0C0C0", rank: 2 },
     { height: h1, color: "#FFD700", rank: 1 },
-    { height: 70, color: "#CD7F32", rank: 3 },
+    { height: h3, color: "#CD7F32", rank: 3 },
   ];
 
   return (

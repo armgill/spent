@@ -86,22 +86,65 @@ function parseCSV(text: string): Omit<Expense, "id">[] {
     .filter(Boolean) as Omit<Expense, "id">[];
 }
 
+// Apple Cash–style amount field: a transparent text input (for the caret) with a
+// gradient/shimmer display layer on top. Uses type="text" + decimal filtering so
+// partial values like "2." stay visible and the width never clips.
+function AmountField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  function handle(raw: string) {
+    let v = raw.replace(/[^0-9.]/g, "");
+    const dot = v.indexOf(".");
+    if (dot !== -1) {
+      const intPart = v.slice(0, dot);
+      const decPart = v.slice(dot + 1).replace(/\./g, "").slice(0, 2);
+      v = intPart + "." + decPart;
+    }
+    onChange(v);
+  }
+  return (
+    <div className="flex items-start justify-center w-full">
+      <span className="amount-font amount-display text-5xl mt-2 mr-1">$</span>
+      <div className="relative">
+        <input
+          style={{ background: "transparent", color: "transparent", caretColor: "#fff", width: `calc(${Math.max(1, value.length)}ch + 0.3em)` }}
+          className="amount-font text-7xl outline-none p-[0px] block"
+          type="text"
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => handle(e.target.value)}
+        />
+        <span
+          className="amount-font amount-display text-7xl absolute inset-0 pointer-events-none whitespace-pre"
+          style={{ opacity: value ? 1 : 0.35 }}
+        >
+          {value || "0"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function ExpensesTab({
   expenses,
   categories,
   onAdd,
+  onUpdate,
   onDelete,
 }: {
   expenses: Expense[];
   categories: Category[];
   onAdd: (e: Omit<Expense, "id">) => void;
+  onUpdate: (e: Expense) => void;
   onDelete: (id: string) => void;
 }) {
+  const [lastCat, setLastCat] = useLocalStorage<string>("lastCategory", categories[0]?.name ?? "");
   const [desc, setDesc] = useState("");
   const [amount, setAmount] = useState("");
-  const [cat, setCat] = useState(categories[0]?.name ?? "");
+  const [cat, setCat] = useState(
+    categories.some((c) => c.name === lastCat) ? lastCat : categories[0]?.name ?? ""
+  );
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState<Expense | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -121,6 +164,7 @@ function ExpensesTab({
     const num = parseFloat(amount);
     if (isNaN(num) || num <= 0) return setError("Enter a valid amount.");
     onAdd({ description: desc.trim(), amount: num, category: cat, date });
+    setLastCat(cat); // remember the last category used so it defaults next time
     setDesc("");
     setAmount("");
     setError("");
@@ -141,20 +185,7 @@ function ExpensesTab({
         <p className="text-xs uppercase tracking-widest mb-4" style={{ color: "rgba(255,255,255,0.25)" }}>
           Amount
         </p>
-        <div className="flex items-start justify-center w-full">
-          <span className="text-4xl font-light mt-2 mr-1" style={{ color: "rgba(255,255,255,0.4)" }}>$</span>
-          <input
-            style={{ background: "transparent", color: "#fff", width: `${Math.max(1, (amount.length || 1))}ch` }}
-            className="text-7xl font-bold outline-none p-[0px]"
-            placeholder="0"
-            type="number"
-            min="0"
-            step="0.01"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            inputMode="decimal"
-          />
-        </div>
+        <AmountField value={amount} onChange={setAmount} />
       </div>
 
       {/* Rest of form */}
@@ -207,10 +238,11 @@ function ExpensesTab({
         <div className="flex flex-col">
           {[...expenses]
             .sort((a, b) => b.date.localeCompare(a.date))
-            .map((exp, i, arr) => (
+            .map((exp) => (
               <div
                 key={exp.id}
-                className="flex items-center justify-between py-4"
+                onClick={() => setEditing(exp)}
+                className="flex items-center justify-between py-4 cursor-pointer active:opacity-60"
               >
                 <span className="text-sm font-semibold mr-4 shrink-0" style={{ color: "#fff" }}>
                   {fmt(exp.amount)}
@@ -224,7 +256,7 @@ function ExpensesTab({
                   </p>
                 </div>
                 <button
-                  onClick={() => onDelete(exp.id)}
+                  onClick={(e) => { e.stopPropagation(); onDelete(exp.id); }}
                   style={{ color: "rgba(255,255,255,0.2)" }}
                   className="active:opacity-50"
                 >
@@ -234,6 +266,140 @@ function ExpensesTab({
             ))}
         </div>
       )}
+
+      {editing && (
+        <EditExpense
+          expense={editing}
+          categories={categories}
+          onSave={(e) => { onUpdate(e); setEditing(null); }}
+          onDelete={(id) => { onDelete(id); setEditing(null); }}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Edit Expense (full-screen, swipe-to-dismiss) ─────────────────────────────
+
+function EditExpense({
+  expense,
+  categories,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  expense: Expense;
+  categories: Category[];
+  onSave: (e: Expense) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+}) {
+  const [amount, setAmount] = useState(String(expense.amount));
+  const [desc, setDesc] = useState(expense.description);
+  const [cat, setCat] = useState(expense.category);
+  const [date, setDate] = useState(expense.date);
+  const [error, setError] = useState("");
+  const [dragX, setDragX] = useState(0);
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const dragging = useRef(false);
+
+  function onTouchStart(e: React.TouchEvent) {
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+    dragging.current = true;
+  }
+  function onTouchMove(e: React.TouchEvent) {
+    if (!dragging.current) return;
+    const dx = e.touches[0].clientX - startX.current;
+    const dy = e.touches[0].clientY - startY.current;
+    // only treat as a back-swipe if mostly horizontal and rightward
+    if (dx > 0 && Math.abs(dx) > Math.abs(dy)) setDragX(dx);
+  }
+  function onTouchEnd() {
+    dragging.current = false;
+    if (dragX > 110) onClose();
+    else setDragX(0);
+  }
+
+  function save() {
+    if (!desc.trim()) return setError("Enter a description.");
+    const num = parseFloat(amount);
+    if (isNaN(num) || num <= 0) return setError("Enter a valid amount.");
+    onSave({ ...expense, amount: num, description: desc.trim(), category: cat, date });
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col overflow-y-auto"
+      style={{
+        background: BG,
+        paddingTop: "env(safe-area-inset-top)",
+        transform: `translateX(${dragX}px)`,
+        transition: dragging.current ? "none" : "transform 0.2s ease",
+      }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      <div className="flex items-center gap-1 px-4 py-3">
+        <button onClick={onClose} className="flex items-center active:opacity-50" style={{ color: "rgba(255,255,255,0.6)" }}>
+          <ChevronLeft size={24} />
+          <span className="text-sm">Back</span>
+        </button>
+      </div>
+
+      <div className="flex flex-col px-5 pt-2">
+        <div className="pb-6 flex flex-col items-center">
+          <p className="text-xs uppercase tracking-widest mb-4" style={{ color: "rgba(255,255,255,0.25)" }}>Amount</p>
+          <AmountField value={amount} onChange={setAmount} />
+        </div>
+
+        <div className="flex flex-col gap-3 py-2">
+          <input
+            style={{ background: "transparent", color: "#fff" }}
+            className="w-full py-2 text-sm outline-none placeholder:opacity-30"
+            placeholder="Description"
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+          />
+          <div className="flex gap-4">
+            <select
+              style={{ background: BG, color: "#fff" }}
+              className="flex-1 py-2 text-sm outline-none"
+              value={cat}
+              onChange={(e) => setCat(e.target.value)}
+            >
+              {categories.map((c) => (
+                <option key={c.id} value={c.name} style={{ background: BG }}>{c.name}</option>
+              ))}
+            </select>
+            <input
+              style={{ background: "transparent", color: "rgba(255,255,255,0.5)" }}
+              className="flex-1 py-2 text-sm outline-none"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+          {error && <p className="text-xs" style={{ color: "rgba(255,80,80,0.8)" }}>{error}</p>}
+          <button
+            onClick={save}
+            className="w-full py-2.5 mt-2 rounded-lg text-sm font-medium active:opacity-60"
+            style={{ background: "rgba(255,255,255,0.12)", color: "#fff" }}
+          >
+            Save
+          </button>
+          <button
+            onClick={() => onDelete(expense.id)}
+            className="w-full py-2.5 text-sm font-medium active:opacity-60"
+            style={{ color: "rgba(255,90,90,0.85)" }}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -569,6 +735,9 @@ export default function App() {
   function addExpense(e: Omit<Expense, "id">) {
     setExpenses((prev) => [{ ...e, id: uid() }, ...prev]);
   }
+  function updateExpense(updated: Expense) {
+    setExpenses((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+  }
   function deleteExpense(id: string) {
     setExpenses((prev) => prev.filter((e) => e.id !== id));
   }
@@ -603,6 +772,7 @@ export default function App() {
             expenses={expenses}
             categories={categories}
             onAdd={addExpense}
+            onUpdate={updateExpense}
             onDelete={deleteExpense}
           />
         )}
