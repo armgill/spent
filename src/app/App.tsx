@@ -100,23 +100,34 @@ function AmountField({ value, onChange }: { value: string; onChange: (v: string)
     }
     onChange(v);
   }
+  // Auto-size: big enough to fill the space for short amounts, shrinking for
+  // long ones so it never overflows the width.
+  const display = value || "0";
+  const n = display.length;
+  const numRem = n <= 3 ? 7 : n <= 5 ? 5.75 : n <= 7 ? 4.5 : n <= 9 ? 3.5 : 3;
+  const dollarRem = numRem * 0.5;
   return (
-    <div className="flex items-start justify-center w-full">
-      <span className="amount-font amount-display text-6xl mt-3 mr-1">$</span>
+    <div className="flex items-center justify-center w-full">
+      <span
+        className="amount-font amount-display mr-1 leading-none"
+        style={{ fontSize: `${dollarRem}rem`, transform: "translateY(-0.06em)" }}
+      >
+        $
+      </span>
       <div className="relative">
         <input
-          style={{ background: "transparent", color: "transparent", caretColor: "#fff", width: `calc(${Math.max(1, value.length)}ch + 0.3em)` }}
-          className="amount-font text-8xl outline-none p-[0px] block text-center"
+          style={{ background: "transparent", color: "transparent", caretColor: "#fff", fontSize: `${numRem}rem`, width: `calc(${Math.max(1, value.length)}ch + 0.3em)` }}
+          className="amount-font outline-none p-[0px] block text-center leading-none"
           type="text"
           inputMode="decimal"
           value={value}
           onChange={(e) => handle(e.target.value)}
         />
         <span
-          className="amount-font amount-display text-8xl absolute inset-0 pointer-events-none whitespace-pre text-center"
-          style={{ opacity: value ? 1 : 0.35 }}
+          className="amount-font amount-display absolute inset-0 pointer-events-none whitespace-pre text-center leading-none"
+          style={{ fontSize: `${numRem}rem`, opacity: value ? 1 : 0.35 }}
         >
-          {value || "0"}
+          {display}
         </span>
       </div>
     </div>
@@ -405,7 +416,7 @@ function EditExpense({
 
 // ─── Summary Tab ─────────────────────────────────────────────────────────────
 
-type SummaryView = "daily" | "weekly" | "monthly";
+type SummaryView = "daily" | "weekly" | "monthly" | "yearly";
 
 function dayLabel(date: Date) {
   return date.toLocaleDateString("default", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
@@ -430,13 +441,14 @@ function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; view: SummaryView; onViewChange: (v: SummaryView) => void }) {
+function SummaryTab({ expenses, categories, view, onViewChange, onUpdate, onDelete }: { expenses: Expense[]; categories: Category[]; view: SummaryView; onViewChange: (v: SummaryView) => void; onUpdate: (e: Expense) => void; onDelete: (id: string) => void }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const [day, setDay] = useState(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
   const [weekStart, setWeekStart] = useState(startOfWeek(now));
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Expense | null>(null);
 
   const filtered = expenses.filter((e) => {
     const d = new Date(e.date + "T00:00:00");
@@ -445,6 +457,7 @@ function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; vie
       const ws = startOfWeek(d);
       return ws.getTime() === weekStart.getTime();
     }
+    if (view === "yearly") return d.getFullYear() === year;
     return d.getFullYear() === year && d.getMonth() === month;
   });
 
@@ -465,6 +478,8 @@ function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; vie
       setDay((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
     } else if (view === "weekly") {
       setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return n; });
+    } else if (view === "yearly") {
+      setYear((y) => y - 1);
     } else {
       if (month === 0) { setMonth(11); setYear((y) => y - 1); }
       else setMonth((m) => m - 1);
@@ -475,20 +490,22 @@ function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; vie
       setDay((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return n; });
     } else if (view === "weekly") {
       setWeekStart((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return n; });
+    } else if (view === "yearly") {
+      setYear((y) => y + 1);
     } else {
       if (month === 11) { setMonth(0); setYear((y) => y + 1); }
       else setMonth((m) => m + 1);
     }
   }
 
-  const periodLabel = view === "daily" ? dayLabel(day) : view === "weekly" ? weekLabel(weekStart) : monthLabel(year, month);
-  const emptyLabel = view === "daily" ? "No expenses this day." : view === "weekly" ? "No expenses this week." : "No expenses this month.";
+  const periodLabel = view === "daily" ? dayLabel(day) : view === "weekly" ? weekLabel(weekStart) : view === "yearly" ? String(year) : monthLabel(year, month);
+  const emptyLabel = view === "daily" ? "No expenses this day." : view === "weekly" ? "No expenses this week." : view === "yearly" ? "No expenses this year." : "No expenses this month.";
 
   return (
     <div className="flex flex-col px-5 py-5">
       {/* View toggle */}
       <div className="flex gap-4 pb-5 mb-5">
-        {(["daily", "weekly", "monthly"] as SummaryView[]).map((v) => (
+        {(["daily", "weekly", "monthly", "yearly"] as SummaryView[]).map((v) => (
           <button
             key={v}
             onClick={() => onViewChange(v)}
@@ -562,7 +579,11 @@ function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; vie
                 {isOpen && (
                   <div className="flex flex-col gap-2 mt-3 pl-1">
                     {[...items].sort((a, b) => b.date.localeCompare(a.date)).map((e) => (
-                      <div key={e.id} className="flex items-center justify-between">
+                      <div
+                        key={e.id}
+                        onClick={() => setEditing(e)}
+                        className="flex items-center justify-between cursor-pointer active:opacity-60"
+                      >
                         <div className="min-w-0">
                           <p className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>
                             {e.description || "—"}
@@ -582,6 +603,16 @@ function SummaryTab({ expenses, view, onViewChange }: { expenses: Expense[]; vie
             );
           })}
         </div>
+      )}
+
+      {editing && (
+        <EditExpense
+          expense={editing}
+          categories={categories}
+          onSave={(e) => { onUpdate(e); setEditing(null); }}
+          onDelete={(id) => { onDelete(id); setEditing(null); }}
+          onClose={() => setEditing(null)}
+        />
       )}
     </div>
   );
@@ -775,7 +806,7 @@ export default function App() {
             onDelete={deleteExpense}
           />
         )}
-        {tab === "summary" && <SummaryTab expenses={expenses} view={summaryView} onViewChange={setSummaryView} />}
+        {tab === "summary" && <SummaryTab expenses={expenses} categories={categories} view={summaryView} onViewChange={setSummaryView} onUpdate={updateExpense} onDelete={deleteExpense} />}
         {tab === "leaderboard" && <LeaderboardTab session={session} refreshKey={lbRefresh} />}
         {tab === "category" && (
           <CategoryTab
